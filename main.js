@@ -1,4 +1,4 @@
-const canvas = document.getElementById('gameCanvas');
+const canvas = document.getElementById('gameCanvas'); 
 const ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false;
 ctx.mozImageSmoothingEnabled = false;
@@ -6,8 +6,8 @@ ctx.webkitImageSmoothingEnabled = false;
 ctx.msImageSmoothingEnabled = false;
 
 function resizeCanvas() {
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
 }
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
@@ -37,48 +37,66 @@ const leafFrames = 9;
 const enemyFrames = 6;
 const attackFrames = 15;
 const fps = 15;
-const howmanylongs = 1000 / fps;
+const frameDuration = 1000 / fps;
 
 let rowletFrame = 0;
 let leafFrame = 0;
 let enemyFrame = 0;
 let attackFrame = 0;
-let linguine = 0;
+let lastFrameTime = 0;
 let cat = 0;
 
 let waffles = {};
 let currentAngle = Math.PI * 1.5;
 let targetAngle = currentAngle;
 
-document.addEventListener('keydown', e => {
-  waffles[e.key.toLowerCase()] = true;
-  if (e.key.toLowerCase() === 'e' && !attackPlaying && !projectileActive) {
-  attackPlaying = true;
-  attackFrame = 0;
-  }
-});
-document.addEventListener('keyup', e => waffles[e.key.toLowerCase()] = false);
-
-function getDirectionAngle() { //leaf rotation stuff math
-    let dx = 0;
-    let dy = 0;
-    if (waffles['arrowup'] || waffles['w']) dy -= 1;
-    if (waffles['arrowdown'] || waffles['s']) dy += 1;
-    if (waffles['arrowleft'] || waffles['a']) dx -= 1;
-    if (waffles['arrowright'] || waffles['d']) dx += 1;
-    if (dx === 0 && dy === 0) return null;
-    return Math.atan2(dy, dx);
-}
-
-let projectileActive = false; //water blast thingy
+let projectileActive = false;
 let projectileX = 0;
 let projectileY = 0;
 let projectileDx = 0;
 let projectileDy = 0;
 
 let attackPlaying = false;
+let attackSpawnX = 0;
+let attackSpawnY = 0;
 
-//pixel perfect detection idk how it works
+let lastSpawnIndex = -1;
+
+function getRandomSpawnPosition() {
+  const margin = 100;
+  const points = [
+    {x: margin, y: margin},
+    {x: canvas.width / 2, y: margin},
+    {x: canvas.width - margin, y: margin},
+    {x: canvas.width - margin, y: canvas.height / 2},
+    {x: canvas.width - margin, y: canvas.height - margin},
+    {x: canvas.width / 2, y: canvas.height - margin},
+    {x: margin, y: canvas.height - margin},
+    {x: margin, y: canvas.height / 2}
+  ];
+  let idx;
+  do {
+    idx = Math.floor(Math.random() * points.length);
+  } while (idx === lastSpawnIndex);
+  lastSpawnIndex = idx;
+  return points[idx];
+}
+
+document.addEventListener('keydown', e => {
+  waffles[e.key.toLowerCase()] = true;
+});
+document.addEventListener('keyup', e => waffles[e.key.toLowerCase()] = false);
+
+function getDirectionAngle() {
+  let dx = 0, dy = 0;
+  if (waffles['arrowup'] || waffles['w']) dy -= 1;
+  if (waffles['arrowdown'] || waffles['s']) dy += 1;
+  if (waffles['arrowleft'] || waffles['a']) dx -= 1;
+  if (waffles['arrowright'] || waffles['d']) dx += 1;
+  if (dx === 0 && dy === 0) return null;
+  return Math.atan2(dy, dx);
+}
+
 function getFramePixelData(img, frameIndex) {
   const offscreen = document.createElement('canvas');
   offscreen.width = frameSize;
@@ -89,8 +107,8 @@ function getFramePixelData(img, frameIndex) {
 }
 
 function pixelPerfectCollision(projX, projY, projW, projH, projPixels, targetX, targetY, targetW, targetH, targetPixels) {
-   const startX = Math.max(projX, targetX);
-    const startY = Math.max(projY, targetY);
+  const startX = Math.max(projX, targetX);
+  const startY = Math.max(projY, targetY);
   const endX = Math.min(projX + projW, targetX + targetW);
   const endY = Math.min(projY + projH, targetY + targetH);
   if (startX >= endX || startY >= endY) return false;
@@ -101,123 +119,113 @@ function pixelPerfectCollision(projX, projY, projW, projH, projPixels, targetX, 
       let targetPixelX = Math.floor((x - targetX) * (targetPixels.width / targetW));
       let targetPixelY = Math.floor((y - targetY) * (targetPixels.height / targetH));
       let projIndex = (projPixelY * projPixels.width + projPixelX) * 4 + 3;
-        let targetIndex = (targetPixelY * targetPixels.width + targetPixelX) * 4 + 3;
-        if (projPixels.data[projIndex] > 0 && targetPixels.data[targetIndex] > 0) {
-          return true;
-        }
-      }
+      let targetIndex = (targetPixelY * targetPixels.width + targetPixelX) * 4 + 3;
+      if (projPixels.data[projIndex] > 0 && targetPixels.data[targetIndex] > 0) return true;
+    }
   }
   return false;
 }
-//gam loop
-//(very words)
-    function gameLoop(timestamp) {
-    if (timestamp - linguine >= howmanylongs) {
+
+function gameLoop(timestamp) {
+  if (!lastFrameTime) lastFrameTime = timestamp;
+  const elapsed = timestamp - lastFrameTime;
+
+  if (elapsed >= frameDuration) {
     rowletFrame = (rowletFrame + 1) % rowletFrames;
-      leafFrame = (leafFrame + 1) % leafFrames;
+    leafFrame = (leafFrame + 1) % leafFrames;
+
     cat += 0.5;
     if (cat >= 1) {
       enemyFrame = (enemyFrame + 1) % enemyFrames;
       cat = 0;
     }
+
     if (attackPlaying) {
       attackFrame++;
       if (attackFrame >= attackFrames) {
+        projectileX = attackSpawnX;
+        projectileY = attackSpawnY;
+
         const centerX = Math.floor((canvas.width - drawWidth) / 2);
         const centerY = Math.floor((canvas.height - drawHeight) / 2);
-        const projectileStartX = centerX;
-        const projectileStartY = centerY - 370;
-        projectileX = projectileStartX + drawWidth / 2;
-        projectileY = projectileStartY + drawHeight / 2;
         const rowletCenterX = centerX + drawWidth / 2;
         const rowletCenterY = centerY + drawHeight / 2;
+
         let dx = rowletCenterX - projectileX;
         let dy = rowletCenterY - projectileY;
         const dist = Math.hypot(dx, dy);
-        const speed = 15;
+        const speed = 100.69;
         projectileDx = (dx / dist) * speed;
         projectileDy = (dy / dist) * speed;
+
         projectileActive = true;
         attackPlaying = false;
         attackFrame = 0;
       }
     }
+
     if (projectileActive) {
       projectileX += projectileDx;
       projectileY += projectileDy;
-       const projWidth = projectileImage.width * scale;
-      const projHeight = projectileImage.height * scale;
-        const projPixels = getFramePixelData(projectileImage, 0);
-    const centerX = Math.floor((canvas.width - drawWidth) / 2);
-        const centerY = Math.floor((canvas.height - drawHeight) / 2);
-        const rowletX = centerX;
-        const rowletY = centerY;
-        const rowletPixels = getFramePixelData(rowletImage, rowletFrame);
-        const radius = drawWidth * 0.8;
-        const newAngle = getDirectionAngle();
-      if (newAngle !== null) {
-        targetAngle = newAngle;
-      }
+
+      const projPixels = getFramePixelData(projectileImage, 0);
+      const centerX = Math.floor((canvas.width - drawWidth) / 2);
+      const centerY = Math.floor((canvas.height - drawHeight) / 2);
+      const rowletX = centerX;
+      const rowletY = centerY;
+      const rowletPixels = getFramePixelData(rowletImage, rowletFrame);
+
+      const radius = drawWidth * 0.8;
+      const newAngle = getDirectionAngle();
+      if (newAngle !== null) targetAngle = newAngle;
       const angleDiff = ((targetAngle - currentAngle + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
       currentAngle += angleDiff * 0.2;
       const leafX = centerX + Math.cos(currentAngle) * radius + drawWidth / 2;
       const leafY = centerY + Math.sin(currentAngle) * radius + drawHeight / 2;
       const leafPixels = getFramePixelData(leafImage, leafFrame);
+
       if (
         pixelPerfectCollision(
-          projectileX - drawWidth / 2,
-          projectileY - drawHeight / 2,
-          drawWidth,
-          drawHeight,
-          projPixels,
-          rowletX,
-            rowletY,
-          drawWidth,
-          drawHeight,
-          rowletPixels
+          projectileX - drawWidth / 2, projectileY - drawHeight / 2,
+          drawWidth, drawHeight, projPixels,
+          rowletX, rowletY, drawWidth, drawHeight, rowletPixels
         )
       ) {
         projectileActive = false;
       } else if (
         pixelPerfectCollision(
-          projectileX - drawWidth / 2,
-          projectileY - drawHeight / 2,
-          drawWidth,
-          drawHeight,
-          projPixels,
-            leafX - drawWidth / 2,
-          leafY - drawHeight / 2,
-          drawWidth,
-          drawHeight,
-          leafPixels
+          projectileX - drawWidth / 2, projectileY - drawHeight / 2,
+          drawWidth, drawHeight, projPixels,
+          leafX - drawWidth / 2, leafY - drawHeight / 2,
+          drawWidth, drawHeight, leafPixels
         )
       ) {
         projectileActive = false;
       }
+
       if (
-        projectileX < -drawWidth ||
-        projectileX > canvas.width + drawWidth ||
-        projectileY < -drawHeight ||
-        projectileY > canvas.height + drawHeight
+        projectileX < -drawWidth || projectileX > canvas.width + drawWidth ||
+        projectileY < -drawHeight || projectileY > canvas.height + drawHeight
       ) {
-          projectileActive = false;
+        projectileActive = false;
       }
     }
-    linguine = timestamp;
+
+    lastFrameTime = timestamp;
   }
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    const centerX = Math.floor((canvas.width - drawWidth) / 2);
-    const centerY = Math.floor((canvas.height - drawHeight) / 2);
-    const radius = drawWidth * 0.8;
-    const newAngle = getDirectionAngle();
-    if (newAngle !== null) {
-      targetAngle = newAngle;
-    }
-    const angleDiff = ((targetAngle - currentAngle + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
-    currentAngle += angleDiff * 0.2;
-    const leafX = centerX + Math.cos(currentAngle) * radius + drawWidth / 2;
+  const centerX = Math.floor((canvas.width - drawWidth) / 2);
+  const centerY = Math.floor((canvas.height - drawHeight) / 2);
+  const radius = drawWidth * 0.8;
+
+  const newAngle = getDirectionAngle();
+  if (newAngle !== null) targetAngle = newAngle;
+  const angleDiff = ((targetAngle - currentAngle + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+  currentAngle += angleDiff * 0.2;
+
+  const leafX = centerX + Math.cos(currentAngle) * radius + drawWidth / 2;
   const leafY = centerY + Math.sin(currentAngle) * radius + drawHeight / 2;
 
   ctx.save();
@@ -225,70 +233,70 @@ function pixelPerfectCollision(projX, projY, projW, projH, projPixels, targetX, 
   ctx.rotate(currentAngle + Math.PI / 2);
   ctx.drawImage(
     leafImage,
-    leafFrame * frameSize,
-    0,
-    frameSize,
-    frameSize,
-    -drawWidth / 2,
+    leafFrame * frameSize, 0,
+    frameSize, frameSize,
+    -drawWidth / 2, -drawHeight / 2,
+    drawWidth, drawHeight
+  );
+  ctx.restore();
+
+  ctx.drawImage(
+    rowletImage,
+    rowletFrame * frameSize, 0,
+    frameSize, frameSize,
+    centerX, centerY,
+    drawWidth, drawHeight
+  );
+
+  if (attackPlaying) {
+    const rowletCenterX = centerX + drawWidth / 2;
+    const rowletCenterY = centerY + drawHeight / 2;
+    const loadingAngle = Math.atan2(rowletCenterY - attackSpawnY, rowletCenterX - attackSpawnX) + Math.PI / 2;
+
+    ctx.save();
+    ctx.translate(attackSpawnX, attackSpawnY);
+    ctx.rotate(loadingAngle);
+    ctx.drawImage(
+      attackImage,
+      attackFrame * frameSize, 0,
+      frameSize, frameSize,
+      -drawWidth / 2,
       -drawHeight / 2,
       drawWidth,
       drawHeight
     );
     ctx.restore();
-  //making things appear
-    ctx.drawImage(
-      rowletImage,
-      rowletFrame * frameSize,
-      0,
-      frameSize,
-      frameSize,
-      centerX,
-      centerY,
-    drawWidth,
-    drawHeight
-  );
-
-  if (attackPlaying) {
-    ctx.drawImage(
-      attackImage,
-      attackFrame * frameSize,
-      0,
-      frameSize,
-      frameSize,
-      centerX,
-      centerY - 370,
-      drawWidth,
-      drawHeight
-    );
   }
 
   if (projectileActive) {
-  ctx.drawImage(
-        projectileImage,
-        projectileX - drawWidth / 2,
-        projectileY - drawHeight / 2,
-        drawWidth,
-        drawHeight
-    );
-  }
+    const angle = Math.atan2(projectileDy, projectileDx) + Math.PI / 2;
 
-  const enemyX = Math.floor((canvas.width - drawWidth) / 2) - 6;
+    ctx.save();
+    ctx.translate(projectileX, projectileY);
+    ctx.rotate(angle);
+    ctx.drawImage(
+      projectileImage,
+      -drawWidth / 2,
+      -drawHeight / 2,
+      drawWidth,
+      drawHeight
+    );
+    ctx.restore();
+  }
+  
+  const enemyX = centerX - 6;
   const enemyY = 10;
   ctx.drawImage(
     enemyImage,
-    enemyFrame * frameSize,
-    0,
-    frameSize,
-    frameSize,
-    enemyX,
-    enemyY,
-    drawWidth,
-      drawHeight
-    );
+    enemyFrame * frameSize, 0,
+    frameSize, frameSize,
+    enemyX, enemyY,
+    drawWidth, drawHeight
+  );
 
-    requestAnimationFrame(gameLoop);
+  requestAnimationFrame(gameLoop);
 }
-//preloading imag and gam start
+
 let loaded = 0;
 function tryStart() {
   loaded++;
@@ -299,3 +307,13 @@ leafImage.onload = tryStart;
 enemyImage.onload = tryStart;
 attackImage.onload = tryStart;
 projectileImage.onload = tryStart;
+
+setInterval(() => {
+  if (!attackPlaying && !projectileActive) {
+    const pos = getRandomSpawnPosition();
+    attackSpawnX = pos.x;
+    attackSpawnY = pos.y;
+    attackPlaying = true;
+    attackFrame = 0;
+  }
+}, 1000);
