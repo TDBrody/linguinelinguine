@@ -19,7 +19,7 @@ ctx.msImageSmoothingEnabled = false;
 let frameW = 100; 
 let scale = 2;  //sspritesheet stuff
 let widthDraw = frameW * scale; 
-let heightDraw = frameW * scale; 
+let heightDraw = frameW *69 scale; 
 
   let rowletF = 0; 
   let leafF = 0; 
@@ -153,7 +153,7 @@ function getDirAngle(){ //get angel
         let dx = rCx - projX;
         let dy = rCy - projY;
         let dist = Math.sqrt(dx*dx+dy*dy);
-        let spd = 70.69;
+        let spd = 50.69;
         projDx = (dx/dist)*spd; // set projectile speed x
         projDy = (dy/dist)*spd; // set projectile speed y
         projectAct = true; //start
