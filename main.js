@@ -125,7 +125,7 @@ function getDirAngle(){ //get angel
     ctx.font='60px Arial';
     ctx.textAlign='center';
     ctx.textBaseline='middle';
-      ctx.fillText('You lost, Rowlet died!', c.width/2, c.height/2);
+      ctx.fillText('You lost, Rowlet died! Reload page to retry!', c.width/2, c.height/2);
       return;
     }
     
