@@ -1,319 +1,269 @@
-const canvas = document.getElementById('gameCanvas'); 
-const ctx = canvas.getContext('2d');
-ctx.imageSmoothingEnabled = false;
+const c = document.getElementById('gameCanvas'); 
+const ctx = c.getContext('2d'); 
+ctx.imageSmoothingEnabled = false; 
 ctx.mozImageSmoothingEnabled = false;
 ctx.webkitImageSmoothingEnabled = false;
 ctx.msImageSmoothingEnabled = false;
 
-function resizeCanvas() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
+  let imgRowlet = new Image(); // rowlet sprite
+  imgRowlet.src = 'Rowlet-Sheet.png';
+  let imgLeaf = new Image(); // leaf sprite
+  imgLeaf.src = 'Leaf-Sheet.png';
+  let imgEnemy = new Image(); // woper sprite
+  imgEnemy.src = 'enemy-sheet.png';
+  let imgAttack = new Image(); 
+  imgAttack.src = 'attack-sheet.png';
+  let imgProjectile = new Image(); 
+  imgProjectile.src = 'projectile.png';
+
+let frameW = 100; 
+let scale = 2;  //sspritesheet stuff
+let widthDraw = frameW * scale; 
+let heightDraw = frameW * scale; 
+
+  let rowletF = 0; 
+  let leafF = 0; 
+  let enemyF = 0; 
+  let attackF = 0; 
+
+  let lastTime = 0; // still spritshete stuff
+  let fps = 15; 
+  let frameTime = 1000 / fps; 
+
+  let projectAct = false;
+  let projX = 0;
+  let projY = 0; 
+  let projDx = 0;
+  let projDy = 0; 
+
+  let attackPlay = false;
+  let atkX = 0; 
+  let atkY = 0; // spritesheet stuff
+
+let lastSpawn = -1; 
+
+let gameOverFlag = false; // game over or not
+
+let waffleKeys = {}; // keys pressed
+  document.addEventListener('keydown', function(e){waffleKeys[e.key.toLowerCase()] = true;});
+  document.addEventListener('keyup', function(e){waffleKeys[e.key.toLowerCase()] = false;});
+
+function resizeCan(){ 
+  c.width = window.innerWidth;
+  c.height = window.innerHeight;
 }
-window.addEventListener('resize', resizeCanvas);
-resizeCanvas();
+window.addEventListener('resize',resizeCan);
+  resizeCan();
 
-const rowletImage = new Image();
-rowletImage.src = 'Rowlet-Sheet.png';
-
-const leafImage = new Image();
-leafImage.src = 'Leaf-Sheet.png';
-
-const enemyImage = new Image();
-enemyImage.src = 'enemy-sheet.png';
-
-const attackImage = new Image();
-attackImage.src = 'attack-sheet.png';
-
-const projectileImage = new Image();
-projectileImage.src = 'projectile.png';
-
-const frameSize = 100;
-const scale = 2;
-const drawWidth = frameSize * scale;
-const drawHeight = frameSize * scale;
-
-const rowletFrames = 10;
-const leafFrames = 9;
-const enemyFrames = 6;
-const attackFrames = 15;
-const fps = 15;
-const frameDuration = 1000 / fps;
-
-let rowletFrame = 0;
-let leafFrame = 0;
-let enemyFrame = 0;
-let attackFrame = 0;
-let lastFrameTime = 0;
-let cat = 0;
-
-let waffles = {};
-let currentAngle = Math.PI * 1.5;
-let targetAngle = currentAngle;
-
-let projectileActive = false;
-let projectileX = 0;
-let projectileY = 0;
-let projectileDx = 0;
-let projectileDy = 0;
-
-let attackPlaying = false;
-let attackSpawnX = 0;
-let attackSpawnY = 0;
-
-let lastSpawnIndex = -1;
-
-function getRandomSpawnPosition() {
-  const margin = 100;
-  const points = [
-    {x: margin, y: margin},
-    {x: canvas.width / 2, y: margin},
-    {x: canvas.width - margin, y: margin},
-    {x: canvas.width - margin, y: canvas.height / 2},
-    {x: canvas.width - margin, y: canvas.height - margin},
-    {x: canvas.width / 2, y: canvas.height - margin},
-    {x: margin, y: canvas.height - margin},
-    {x: margin, y: canvas.height / 2}
-  ];
-  let idx;
-  do {
-    idx = Math.floor(Math.random() * points.length);
-  } while (idx === lastSpawnIndex);
-  lastSpawnIndex = idx;
-  return points[idx];
+  function randSpawn(){ //spawning the projectil somwhere :)
+    let margin = 100;
+      let pts = [
+        {x:margin,y:margin},
+        {x:c.width/2,y:margin},
+        {x:c.width-margin,y:margin},
+        {x:c.width-margin,y:c.height/2},
+        {x:c.width-margin,y:c.height-margin},
+        {x:c.width/2,y:c.height-margin},
+        {x:margin,y:c.height-margin},
+        {x:margin,y:c.height/2}
+      ];
+  let i;
+  do{
+    i = Math.floor(Math.random()*pts.length);
+  }while(i==lastSpawn);
+  lastSpawn = i;
+  return pts[i];
 }
 
-document.addEventListener('keydown', e => {
-  waffles[e.key.toLowerCase()] = true;
-});
-document.addEventListener('keyup', e => waffles[e.key.toLowerCase()] = false);
+let angleCur = Math.PI*1.5; //lef angle rn
+let angleTarget = angleCur; // leaf angle target to be
 
-function getDirectionAngle() {
-  let dx = 0, dy = 0;
-  if (waffles['arrowup'] || waffles['w']) dy -= 1;
-  if (waffles['arrowdown'] || waffles['s']) dy += 1;
-  if (waffles['arrowleft'] || waffles['a']) dx -= 1;
-  if (waffles['arrowright'] || waffles['d']) dx += 1;
-  if (dx === 0 && dy === 0) return null;
-  return Math.atan2(dy, dx);
-}
-
-function getFramePixelData(img, frameIndex) {
-  const offscreen = document.createElement('canvas');
-  offscreen.width = frameSize;
-  offscreen.height = frameSize;
-  const offCtx = offscreen.getContext('2d');
-  offCtx.drawImage(img, frameIndex * frameSize, 0, frameSize, frameSize, 0, 0, frameSize, frameSize);
-  return offCtx.getImageData(0, 0, frameSize, frameSize);
-}
-
-function pixelPerfectCollision(projX, projY, projW, projH, projPixels, targetX, targetY, targetW, targetH, targetPixels) {
-  const startX = Math.max(projX, targetX);
-  const startY = Math.max(projY, targetY);
-  const endX = Math.min(projX + projW, targetX + targetW);
-  const endY = Math.min(projY + projH, targetY + targetH);
-  if (startX >= endX || startY >= endY) return false;
-  for (let y = startY; y < endY; y++) {
-    for (let x = startX; x < endX; x++) {
-      let projPixelX = Math.floor((x - projX) * (projPixels.width / projW));
-      let projPixelY = Math.floor((y - projY) * (projPixels.height / projH));
-      let targetPixelX = Math.floor((x - targetX) * (targetPixels.width / targetW));
-      let targetPixelY = Math.floor((y - targetY) * (targetPixels.height / targetH));
-      let projIndex = (projPixelY * projPixels.width + projPixelX) * 4 + 3;
-      let targetIndex = (targetPixelY * targetPixels.width + targetPixelX) * 4 + 3;
-      if (projPixels.data[projIndex] > 0 && targetPixels.data[targetIndex] > 0) return true;
-    }
-  }
-  return false;
-}
-
-function gameLoop(timestamp) {
-  if (!lastFrameTime) lastFrameTime = timestamp;
-  const elapsed = timestamp - lastFrameTime;
-
-  if (elapsed >= frameDuration) {
-    rowletFrame = (rowletFrame + 1) % rowletFrames;
-    leafFrame = (leafFrame + 1) % leafFrames;
-
-    cat += 0.5;
-    if (cat >= 1) {
-      enemyFrame = (enemyFrame + 1) % enemyFrames;
-      cat = 0;
+function getDirAngle(){ //get angel
+  let dx=0; let dy=0;
+    if(waffleKeys['arrowup']||waffleKeys['w'])dy-=1;
+      if(waffleKeys['arrowdown']||waffleKeys['s'])dy+=1;
+      if(waffleKeys['arrowleft']||waffleKeys['a'])dx-=1;
+      if(waffleKeys['arrowright']||waffleKeys['d'])dx+=1;
+      if(dx==0&&dy==0)return null;
+      return Math.atan2(dy,dx);
     }
 
-    if (attackPlaying) {
-      attackFrame++;
-      if (attackFrame >= attackFrames) {
-        projectileX = attackSpawnX;
-        projectileY = attackSpawnY;
-
-        const centerX = Math.floor((canvas.width - drawWidth) / 2);
-        const centerY = Math.floor((canvas.height - drawHeight) / 2);
-        const rowletCenterX = centerX + drawWidth / 2;
-        const rowletCenterY = centerY + drawHeight / 2;
-
-        let dx = rowletCenterX - projectileX;
-        let dy = rowletCenterY - projectileY;
-        const dist = Math.hypot(dx, dy);
-        const speed = 100.69;
-        projectileDx = (dx / dist) * speed;
-        projectileDy = (dy / dist) * speed;
-
-        projectileActive = true;
-        attackPlaying = false;
-        attackFrame = 0;
-      }
-    }
-
-    if (projectileActive) {
-      projectileX += projectileDx;
-      projectileY += projectileDy;
-
-      const projPixels = getFramePixelData(projectileImage, 0);
-      const centerX = Math.floor((canvas.width - drawWidth) / 2);
-      const centerY = Math.floor((canvas.height - drawHeight) / 2);
-      const rowletX = centerX;
-      const rowletY = centerY;
-      const rowletPixels = getFramePixelData(rowletImage, rowletFrame);
-
-      const radius = drawWidth * 0.8;
-      const newAngle = getDirectionAngle();
-      if (newAngle !== null) targetAngle = newAngle;
-      const angleDiff = ((targetAngle - currentAngle + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
-      currentAngle += angleDiff * 0.2;
-      const leafX = centerX + Math.cos(currentAngle) * radius + drawWidth / 2;
-      const leafY = centerY + Math.sin(currentAngle) * radius + drawHeight / 2;
-      const leafPixels = getFramePixelData(leafImage, leafFrame);
-
-      if (
-        pixelPerfectCollision(
-          projectileX - drawWidth / 2, projectileY - drawHeight / 2,
-          drawWidth, drawHeight, projPixels,
-          rowletX, rowletY, drawWidth, drawHeight, rowletPixels
-        )
-      ) {
-        projectileActive = false;
-      } else if (
-        pixelPerfectCollision(
-          projectileX - drawWidth / 2, projectileY - drawHeight / 2,
-          drawWidth, drawHeight, projPixels,
-          leafX - drawWidth / 2, leafY - drawHeight / 2,
-          drawWidth, drawHeight, leafPixels
-        )
-      ) {
-        projectileActive = false;
-      }
-
-      if (
-        projectileX < -drawWidth || projectileX > canvas.width + drawWidth ||
-        projectileY < -drawHeight || projectileY > canvas.height + drawHeight
-      ) {
-        projectileActive = false;
-      }
-    }
-
-    lastFrameTime = timestamp;
+  function getPixData(im,fI){ //pixel 
+    let off = document.createElement('canvas');
+    off.width = frameW; off.height=frameW;
+    let oc = off.getContext('2d');
+    oc.drawImage(im,fI*frameW,0,frameW,frameW,0,0,frameW,frameW);
+    return oc.getImageData(0,0,frameW,frameW);
   }
 
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  const centerX = Math.floor((canvas.width - drawWidth) / 2);
-  const centerY = Math.floor((canvas.height - drawHeight) / 2);
-  const radius = drawWidth * 0.8;
-
-  const newAngle = getDirectionAngle();
-  if (newAngle !== null) targetAngle = newAngle;
-  const angleDiff = ((targetAngle - currentAngle + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
-  currentAngle += angleDiff * 0.2;
-
-  const leafX = centerX + Math.cos(currentAngle) * radius + drawWidth / 2;
-  const leafY = centerY + Math.sin(currentAngle) * radius + drawHeight / 2;
-
-  ctx.save();
-  ctx.translate(leafX, leafY);
-  ctx.rotate(currentAngle + Math.PI / 2);
-  ctx.drawImage(
-    leafImage,
-    leafFrame * frameSize, 0,
-    frameSize, frameSize,
-    -drawWidth / 2, -drawHeight / 2,
-    drawWidth, drawHeight
-  );
-  ctx.restore();
-
-  ctx.drawImage(
-    rowletImage,
-    rowletFrame * frameSize, 0,
-    frameSize, frameSize,
-    centerX, centerY,
-    drawWidth, drawHeight
-  );
-
-  if (attackPlaying) {
-    const rowletCenterX = centerX + drawWidth / 2;
-    const rowletCenterY = centerY + drawHeight / 2;
-    const loadingAngle = Math.atan2(rowletCenterY - attackSpawnY, rowletCenterX - attackSpawnX) + Math.PI / 2;
-
-    ctx.save();
-    ctx.translate(attackSpawnX, attackSpawnY);
-    ctx.rotate(loadingAngle);
-    ctx.drawImage(
-      attackImage,
-      attackFrame * frameSize, 0,
-      frameSize, frameSize,
-      -drawWidth / 2,
-      -drawHeight / 2,
-      drawWidth,
-      drawHeight
-    );
-    ctx.restore();
+  function pixColl(px,py,pw,ph,pp,tX,tY,tW,tH,tp){ // pixel perfect collision idk
+    let sX = Math.max(px,tX);
+    let sY = Math.max(py,tY);
+    let eX = Math.min(px+pw,tX+tW);
+  let eY = Math.min(py+ph,tY+tH);
+  if(sX>=eX || sY>=eY) return false;
+  for(let y=sY;y<eY;y++){
+    for(let x=sX;x<eX;x++){
+      let pPX = Math.floor((x-px)*(pp.width/pw));
+      let pPY = Math.floor((y-py)*(pp.height/ph));
+      let tPX = Math.floor((x-tX)*(tp.width/tW));
+      let tPY = Math.floor((y-tY)*(tp.height/tH));
+      let pI = (pPY*pp.width+pPX)*4+3; // colors
+      let tI = (tPY*tp.width+tPX)*4+3; 
+      if(pp.data[pI]>0 && tp.data[tI]>0) return true; // idk
+      }
+    }
+    return false;
   }
 
-  if (projectileActive) {
-    const angle = Math.atan2(projectileDy, projectileDx) + Math.PI / 2;
+  let count = 0; 
 
-    ctx.save();
-    ctx.translate(projectileX, projectileY);
-    ctx.rotate(angle);
-    ctx.drawImage(
-      projectileImage,
-      -drawWidth / 2,
-      -drawHeight / 2,
-      drawWidth,
-      drawHeight
-    );
-    ctx.restore();
+  function loop(tStamp){ //main gam loop
+    if(gameOverFlag){
+      ctx.clearRect(0,0,c.width,c.height);
+    ctx.fillStyle='red';
+    ctx.font='60px Arial';
+    ctx.textAlign='center';
+    ctx.textBaseline='middle';
+      ctx.fillText('You lost, Rowlet died!', c.width/2, c.height/2);
+      return;
+    }
+    
+      if(!lastTime) lastTime = tStamp;
+      let elapsed = tStamp - lastTime;
+      
+      if(elapsed >= frameTime){
+        rowletF = (rowletF+1)%10; // animate rowlet
+      leafF = (leafF+1)%9; // animate leaf
+      count += 0.5; 
+      if(count >= 1){
+        enemyF = (enemyF+1)%6; 
+        count=0;
+      }
+      
+      if(attackPlay){ // when it plays
+        attackF++;
+        if(attackF >= 15){ //cool animation finished now fire
+          projX = atkX;
+          projY = atkY;
+          let cx = Math.floor((c.width - widthDraw)/2);
+          let cy = Math.floor((c.height - heightDraw)/2);
+          let rCx = cx + widthDraw/2;
+        let rCy = cy + heightDraw/2;
+        let dx = rCx - projX;
+        let dy = rCy - projY;
+        let dist = Math.sqrt(dx*dx+dy*dy);
+        let spd = 100.69;
+        projDx = (dx/dist)*spd; // set projectile speed x
+        projDy = (dy/dist)*spd; // set projectile speed y
+        projectAct = true; //start
+        attackPlay = false; //stop
+        attackF=0; //go back to 0
+      }
+    }
+    
+    if(projectAct){ 
+      projX += projDx;
+        projY += projDy;
+        
+        let projPix = getPixData(imgProjectile, 0); //pixil stuff
+        let cx = Math.floor((c.width - widthDraw)/2);
+        let cy = Math.floor((c.height - heightDraw)/2);
+        let rX = cx;
+        let rY = cy;
+      let rowPix = getPixData(imgRowlet,rowletF); // rowlet pixel stuff
+      let rad = widthDraw*0.8;
+      let newAng = getDirAngle();
+        if(newAng!==null) angleTarget=newAng;
+        let diff = ((angleTarget-angleCur+Math.PI*3)%(Math.PI*2))-Math.PI;
+        angleCur += diff*0.2;
+        let leafX = cx + Math.cos(angleCur)*rad + widthDraw/2;
+        let leafY = cy + Math.sin(angleCur)*rad + heightDraw/2;
+        let leafPix = getPixData(imgLeaf,leafF);
+        
+        
+        if(pixColl(projX-widthDraw/2, projY-heightDraw/2,widthDraw,heightDraw,projPix,rX,rY,widthDraw,heightDraw,rowPix)){
+          projectAct = false; 
+          gameOverFlag = true; 
+        } else if(pixColl(projX-widthDraw/2,projY-heightDraw/2,widthDraw,heightDraw,projPix,leafX-widthDraw/2,leafY-heightDraw/2,widthDraw,heightDraw,leafPix)){
+          projectAct = false; // weird overcomplicated math stuff for collision using pixels idk how it works
+        }
+        
+      // stop water attack if offscreen
+      if(projX < -widthDraw || projX > c.width+widthDraw || projY < -heightDraw || projY > c.height+heightDraw){
+        projectAct = false;
+      }
+    }
+    
+    lastTime = tStamp;
   }
   
-  const enemyX = centerX - 6;
-  const enemyY = 10;
-  ctx.drawImage(
-    enemyImage,
-    enemyFrame * frameSize, 0,
-    frameSize, frameSize,
-    enemyX, enemyY,
-    drawWidth, drawHeight
-  );
-
-  requestAnimationFrame(gameLoop);
-}
-
-let loaded = 0;
-function tryStart() {
-  loaded++;
-  if (loaded === 5) requestAnimationFrame(gameLoop);
-}
-rowletImage.onload = tryStart;
-leafImage.onload = tryStart;
-enemyImage.onload = tryStart;
-attackImage.onload = tryStart;
-projectileImage.onload = tryStart;
-
-setInterval(() => {
-  if (!attackPlaying && !projectileActive) {
-    const pos = getRandomSpawnPosition();
-    attackSpawnX = pos.x;
-    attackSpawnY = pos.y;
-    attackPlaying = true;
-    attackFrame = 0;
+  ctx.clearRect(0,0,c.width,c.height); //clear screen
+  
+  let cx = Math.floor((c.width - widthDraw)/2);
+    let cy = Math.floor((c.height - heightDraw)/2);
+    let rad = widthDraw*0.8;
+      
+      let newAng = getDirAngle(); //lef angle
+      if(newAng!==null)angleTarget=newAng;
+      let diff = ((angleTarget-angleCur+Math.PI*3)%(Math.PI*2))-Math.PI;
+      angleCur += diff*0.2;
+      
+      let leafX = cx + Math.cos(angleCur)*rad + widthDraw/2;
+      let leafY = cy + Math.sin(angleCur)*rad + heightDraw/2;
+    
+    ctx.save(); // make leaf with angle
+    ctx.translate(leafX,leafY);
+    ctx.rotate(angleCur+Math.PI/2);
+    ctx.drawImage(imgLeaf,leafF*frameW,0,frameW,frameW,-widthDraw/2,-heightDraw/2,widthDraw,heightDraw);
+    ctx.restore();
+  
+  ctx.drawImage(imgRowlet,rowletF*frameW,0,frameW,frameW,cx,cy,widthDraw,heightDraw); // draw rowlet
+  
+    if(attackPlay){ 
+      let rCx = cx + widthDraw/2;
+      let rCy = cy + heightDraw/2;
+      let angLoad = Math.atan2(rCy - atkY,rCx - atkX)+Math.PI/2;
+      ctx.save();
+      ctx.translate(atkX,atkY);
+        ctx.rotate(angLoad);
+        ctx.drawImage(imgAttack,attackF*frameW,0,frameW,frameW,-widthDraw/2,-heightDraw/2,widthDraw,heightDraw);
+        ctx.restore();
+        }
+        
+        if(projectAct){ 
+          let ang = Math.atan2(projDy,projDx)+Math.PI/2;
+        ctx.save();
+        ctx.translate(projX,projY);
+        ctx.rotate(ang);
+        ctx.drawImage(imgProjectile,-widthDraw/2,-heightDraw/2,widthDraw,heightDraw);
+        ctx.restore();
+      }
+      
+    let eX = cx - 6;
+    let eY = 10;
+    ctx.drawImage(imgEnemy,enemyF*frameW,0,frameW,frameW,eX,eY,widthDraw,heightDraw);
+    
+    requestAnimationFrame(loop); // next frame
   }
-}, 1000);
+
+    let imgsLoaded = 0; 
+        function tryStart(){
+          imgsLoaded++;
+          if(imgsLoaded==5)requestAnimationFrame(loop); // start game after images loaded
+        }
+        imgRowlet.onload = tryStart;
+        imgLeaf.onload = tryStart;
+        imgEnemy.onload = tryStart;
+        imgAttack.onload = tryStart;
+        imgProjectile.onload = tryStart;
+
+  setInterval(function(){ // spawn  attack every sec
+      if(!attackPlay && !projectAct && !gameOverFlag){
+        let pos = randSpawn();
+        atkX = pos.x;
+        atkY = pos.y;
+        attackPlay = true;
+        attackF = 0;
+      }
+    },1000);
