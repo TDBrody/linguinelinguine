@@ -19,7 +19,7 @@ ctx.msImageSmoothingEnabled = false;
 let frameW = 100; 
 let scale = 2;  //sspritesheet stuff
 let widthDraw = frameW * scale; 
-let heightDraw = frameW *69 scale; 
+let heightDraw = frameW * scale; 
 
   let rowletF = 0; 
   let leafF = 0; 
