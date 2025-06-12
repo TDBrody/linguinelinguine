@@ -153,7 +153,7 @@ function getDirAngle(){ //get angel
         let dx = rCx - projX;
         let dy = rCy - projY;
         let dist = Math.sqrt(dx*dx+dy*dy);
-        let spd = 50.69;
+        let spd = 70.69;
         projDx = (dx/dist)*spd; // set projectile speed x
         projDy = (dy/dist)*spd; // set projectile speed y
         projectAct = true; //start
